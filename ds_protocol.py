@@ -12,15 +12,17 @@ def extract_json(json_msg: str) -> DataTuple:
   '''
   try:
     json_obj = json.loads(json_msg)
-    response = json_obj['response']
-    type = json_obj['response']['type']
-    server_message = json_obj['response']['message']
     try:
       token = json_obj['response']['token']
     except KeyError:
       token = ''
+    response = json_obj['response']
+    type = json_obj['response']['type']
+    server_message = json_obj['response']['message']
   except json.JSONDecodeError:
     print("Json cannot be decoded.")
+  except KeyError:
+    server_message = json_obj['response']['messages']
 
   return DataTuple(response, type, server_message, token)
 

@@ -1,130 +1,139 @@
 import tkinter as tk
 from tkinter import ttk, filedialog, simpledialog
-from Profile import Profile, Post, DsuProfileError, DsuFileError
+from Profile import Profile, Post
 from NaClProfile import NaClProfile
 import ds_client
-from a5 import keyword_search
-from LastFM import LastFM
-from OpenWeather import OpenWeather
-from ExtraCreditAPI import ExtraCredit
+import ds_messenger
+
+
+
 
 """
-A subclass of tk.Frame that is responsible for drawing all of the widgets
-in the body portion of the root frame.
+A subclass of tk.Frame that is responsible for drawing the user selection panel 
 """
 class Body(tk.Frame):
-    def __init__(self, root, select_callback=None):
+    def __init__(self, root, select_callback=None, set_new_text=None):
+        # initialize tkinter objects
         tk.Frame.__init__(self, root) 
         self.root = root
+        
+        # declare a callback to attempt to send the message in the user chatbox
         self._select_callback = select_callback
+        # declare a callback to change the text in the user chatbox
+        self._new_text_callback = set_new_text
 
-        # a list of the Post objects available in the active DSU file
-        self._posts = [Post]
+        # a list of the users available to contact through the gui
+        self._users = []
+        # stored index of the current selection (to properly be able to send to the proper user)
+        self.chat_user = None
         
         # After all initialization is complete, call the _draw method to pack the widgets
         # into the Body instance 
         self._draw()
-    
-    """
-    Update the entry_editor with the full post entry when the corresponding node in the posts_tree
-    is selected.
-    """
-    def node_select(self, event):
-        index = int(self.posts_tree.selection()[0])-1 #selections are not 0-based, so subtract one.
-        entry = self._posts[index].entry
-        self.set_text_entry(entry)
-    
-    """
-    Returns the text that is currently displayed in the entry_editor widget.
-    """
-    def get_text_entry(self) -> str:
-        return self.entry_editor.get('1.0', 'end').rstrip()
-
-    def get_cursor_pos(self) -> float:
-        cursor_pos = self.entry_editor.index(tk.INSERT)
-        return cursor_pos
 
     """
     Sets the text to be displayed in the entry_editor widget.
     NOTE: This method is useful for clearing the widget, just pass an empty string.
     """
     def set_text_entry(self, text:str):
-        # TODO: Write code to that deletes all current text in the self.entry_editor widget
-        # and inserts the value contained within the text parameter.
         self.entry_editor.delete(0.0, 'end')
         self.entry_editor.insert(0.0, text)
         pass
+
+    def get_text_entry(self) -> str:
+        return self.entry_editor.get('1.0', 'end').rstrip()
+    
+    """
+    Update the entry_editor with the selected user's messages when the corresponding node in the posts_tree
+    is selected.
+    """
+    def node_select(self, event):
+        index = int(self.users_tree.selection()[0])-1 #selections are not 0-based, so subtract one.
+        print(index)
+        print(self._users)
+        self.chat_user = self._users[index]
+
+        if self._new_text_callback != None:
+            self._new_text_callback()
     
     """
     Populates the self._posts attribute with posts from the active DSU file.
     """
-    def set_posts(self, posts:list):
-        # TODO: Write code to populate self._posts with the post data passed
-        # in the posts parameter and repopulate the UI with the new post entries.
-        # HINT: You will have to write the delete code yourself, but you can take 
-        # advantage of the self.insert_posttree method for updating the posts_tree
-        # widget.
-        self._posts = posts
-        for id, post in enumerate(self._posts):
-            self._insert_post_tree(id + 1, post)
+    def set_users(self, users:list):
+        self._users = users
+        for id, users in enumerate(self._users):
+            self._insert_users_tree(id + 1, users)
 
     """
     Inserts a single post to the post_tree widget.
     """
-    def insert_post(self, post: Post):
-        self._posts.append(post)
-        self._insert_post_tree(len(self._posts), post)
+    def insert_user(self, user:str):
+        self._users.append(user)
+        self._insert_users_tree(len(self._users), user)
 
     """
     Resets all UI widgets to their default state. Useful for when clearing the UI is neccessary such
     as when a new DSU file is loaded, for example.
     """
     def reset_ui(self):
-        self.set_text_entry("")
-        self._posts = []
-        for item in self.posts_tree.get_children():
-            self.posts_tree.delete(item)
+        self.users = []
+        for item in self.users_tree.get_children():
+            self.users_tree.delete(item)
 
     """
     Inserts a post entry into the posts_tree widget.
     """
-    def _insert_post_tree(self, id, post: Post):
-        entry = post.entry
-        title = post.title
-        
-        if title == None:
-            if len(entry) > 25:
-                entry = entry[:24] + "..."
-        else:
-            entry = title
-        
-        self.posts_tree.insert('', id, id, text=entry)
+    def _insert_users_tree(self, id, user:str):
+        self.users_tree.insert('', id, id, text=user)
     
     """
     Call only once upon initialization to add widgets to the frame
     """
     def _draw(self):
-        posts_frame = tk.Frame(master=self, width=250)
-        posts_frame.pack(fill=tk.BOTH, side=tk.LEFT)
-        self.posts_tree = ttk.Treeview(posts_frame)
-        self.posts_tree.bind("<<TreeviewSelect>>", self.node_select)
-        self.posts_tree.pack(fill=tk.BOTH, side=tk.TOP, expand=True, padx=5, pady=5)
+        users_frame = tk.Frame(master=self, width=250)
+        users_frame.pack(fill=tk.BOTH, side=tk.LEFT)
+        self.users_tree = ttk.Treeview(users_frame)
+        self.users_tree.bind("<<TreeviewSelect>>", self.node_select)
+        self.users_tree.pack(fill=tk.BOTH, side=tk.TOP, expand=True, padx=5, pady=5)
 
-        entry_frame = tk.Frame(master=self, bg="")
-        entry_frame.pack(fill=tk.BOTH, side=tk.TOP, expand=True)
-        
-        editor_frame = tk.Frame(master=entry_frame, bg="red")
-        editor_frame.pack(fill=tk.BOTH, side=tk.LEFT, expand=True)
-        
-        scroll_frame = tk.Frame(master=entry_frame, bg="blue", width=10)
-        scroll_frame.pack(fill=tk.BOTH, side=tk.LEFT, expand=False)
-        
-        self.entry_editor = tk.Text(editor_frame, width=0)
-        self.entry_editor.pack(fill=tk.BOTH, side=tk.LEFT, expand=True, padx=0, pady=0)
+        receipt_frame = tk.Frame(master=self)
+        receipt_frame.pack(fill=tk.BOTH, side=tk.LEFT, expand=True, padx=5, pady=[0,5])
 
-        entry_editor_scrollbar = tk.Scrollbar(master=scroll_frame, command=self.entry_editor.yview)
+
+        # create text frame with scrollbar bound above the footer
+        frame_within_below =tk.Frame(master=receipt_frame, bg='green')
+        frame_within_below.pack(fill=tk.BOTH, side=tk.BOTTOM, expand=False, padx=5, pady=5)
+
+        self.entry_editor = tk.Text(frame_within_below, )
+        self.entry_editor.pack(fill=tk.BOTH, side=tk.LEFT, expand=False)
+
+        scroll_frame_chat = tk.Frame(master=frame_within_below)
+        scroll_frame_chat.pack(fill=tk.BOTH, side=tk.LEFT, expand=False)
+
+        entry_editor_scrollbar = tk.Scrollbar(master=scroll_frame_chat, command=self.entry_editor.yview)
         self.entry_editor['yscrollcommand'] = entry_editor_scrollbar.set
         entry_editor_scrollbar.pack(fill=tk.Y, side=tk.LEFT, expand=False, padx=0, pady=0)
+
+        # create short frame divider to keep distance between frames constant
+        frame_within_hidden = tk.Frame(master=receipt_frame, height=5, bg='blue')
+        frame_within_hidden.pack(fill=tk.BOTH, side=tk.BOTTOM, expand=False)
+
+        # create a 'label' (subject to ve 
+        frame_within_above = tk.Frame(master=receipt_frame, bg='red', padx=5, pady=5)
+        frame_within_above.pack(fill=tk.BOTH, side=tk.BOTTOM, expand=False)
+
+        self.body_label = tk.Label(master=frame_within_above, text="wowww\n\n\n", relief='groove')
+        self.body_label.pack(fill=tk.BOTH, side=tk.LEFT, expand=True)
+##
+##        scroll_frame_display = tk.Frame(master=frame_within_above, bg="blue")
+##        scroll_frame_display.pack(fill=tk.BOTH, side=tk.LEFT, expand=False)
+##
+##        body_label_scrollbar = tk.Scrollbar(master=scroll_frame_display, command=self.body_label.yview)
+##        self.body_label['yscrollcommand'] = body_label_scrollbar.set
+##        body_label_scrollbar.pack(fill=tk.Y, side=tk.LEFT, expand=False, padx=0, pady=0)
+
+
+
 
 """
 A subclass of tk.Frame that is responsible for drawing all of the widgets
@@ -132,31 +141,19 @@ in the footer portion of the root frame.
 """
 
 class Footer(tk.Frame):
-    def __init__(self, root, save_callback=None, online_callback=None):
+    def __init__(self, root, save_callback=None, add_callback=None):
+        # initialize tk elements
         tk.Frame.__init__(self, root)
         self.root = root
+        
+        # callback to send
         self._save_callback = save_callback
-        self._online_callback = online_callback
-        # IntVar is a variable class that provides access to special variables
-        # for Tkinter widgets. is_online is used to hold the state of the chk_button widget.
-        # The value assigned to is_online when the chk_button widget is changed by the user
-        # can be retrieved using he get() function:
-        # chk_value = self.is_online.get()
-        self.is_online = tk.IntVar()
-        # After all initialization is complete, call the _draw method to pack the widgets
-        # into the Footer instance 
+        # callback to add
+        self._add_callback = add_callback
+
+        # draw elements
         self._draw()
     
-    """
-    Calls the callback function specified in the online_callback class attribute, if
-    available, when the chk_button widget has been clicked.
-    """
-    def online_click(self):
-        # TODO: Add code that implements a callback to the chk_button click event.
-        # The callback should support a single parameter that contains the value
-        # of the self.is_online widget variable.
-        if self._online_callback is not None:
-            self._online_callback(self.is_online.get())
 
     """
     Calls the callback function specified in the save_callback class attribute, if
@@ -166,6 +163,13 @@ class Footer(tk.Frame):
         if self._save_callback is not None:
             self._save_callback()
 
+    """
+    Calls the other callback function specified in the add_callback class attribute, if
+    available, when the add_button has been clicked.
+    """
+    def add_click(self):
+        if self._add_callback is not None:
+            self._add_callback()
     """
     Updates the text that is displayed in the footer_label widget
     """
@@ -177,19 +181,19 @@ class Footer(tk.Frame):
     Call only once upon initialization to add widgets to the frame
     """
     def _draw(self):
-        save_button = tk.Button(master=self, text="Save Post", width=20)
+        save_button = tk.Button(master=self, text="Send", width=10, bg='blue')
         save_button.configure(command=self.save_click)
-        save_button.pack(fill=tk.BOTH, side=tk.RIGHT, padx=5, pady=5)
-        
+        save_button.pack(fill=tk.BOTH, side=tk.RIGHT, padx=[0,5], pady=5)
 
-        self.chk_button = tk.Checkbutton(master=self, text="Online", variable=self.is_online)
-        self.chk_button.configure(command=self.online_click) 
-        self.chk_button.pack(fill=tk.BOTH, side=tk.RIGHT)
-
-        self.footer_label = tk.Label(master=self, text="Ready.")
-        self.footer_label.pack(fill=tk.BOTH, side=tk.LEFT, padx=5)
+        add_button = tk.Button(master=self, text="Add User", width=11, bg='blue')
+        add_button.configure(command=self.add_click)
+        add_button.pack(fill=tk.BOTH, side=tk.LEFT, padx=[69,0], pady=5)
 
         
+
+##        self.footer_label = tk.Label(master=self, text="Ready.") #think about making this display the status of the most recent message; ie 'sent!' or 'failed to send!'
+##        self.footer_label.pack(fill=tk.BOTH, side=tk.LEFT, padx=False)
+
 
 """
 A subclass of tk.Frame that is responsible for drawing all of the widgets
@@ -200,168 +204,54 @@ class MainApp(tk.Frame):
     def __init__(self, root, _is_online=False, _profile_filename=None):
         tk.Frame.__init__(self, root)
         self.root = root
-        self._is_online = _is_online
+        
         self._profile_filename = _profile_filename
-        self.ip_widget = False
         # Initialize a new NaClProfile and assign it to a class attribute.
         self._current_profile = NaClProfile()
 
         # After all initialization is complete, call the _draw method to pack the widgets
         # into the root frame
         self._draw()
-
-    """
-    Creates a new DSU file when the 'New' menu item is clicked.
-    """
-    def new_profile(self):
-        # !! Check for errors
-        filename = tk.filedialog.asksaveasfile(filetypes=[('Distributed Social Profile', '.dsu')], defaultextension=[('Distributed Social Profile', '.dsu')])
-        self._profile_filename = filename.name
-        self._current_profile = NaClProfile()
-        self._current_profile.generate_keypair()
-        self._current_profile.username = "GenEric"
-        self._current_profile.password = "1234"
-        self._current_profile.dsuserver = "168.235.86.101"
-        self._current_profile.save_profile(self._profile_filename)
-        self.body.reset_ui()
-    
-    """
-    Opens an existing DSU file when the 'Open' menu item is clicked and loads the profile
-    data into the UI.
-    """
-    def open_profile(self):
-        # !! Try exploiting
-        try:
-            filename = tk.filedialog.askopenfile(filetypes=[('Distributed Social Profile', '*.dsu')])
-            self._profile_filename = filename.name
-            self._current_profile = NaClProfile()
-            self._current_profile.load_profile(self._profile_filename)
-        except DsuProfileError: 
-            tk.messagebox.showwarning(title="Profile Load Error", message="Unable To Load Profile")
-            self._profile_filename = None
-            print("Bad Profile")
-        except AttributeError:
-            tk.messagebox.showwarning(title="Profile Load Error", message="Choose Valid Profile")
-            self._profile_filename = None
-            print("Bad Profile")
-        except DsuFileError:
-            tk.messagebox.showwarning(title="Profile Load Error", message="Choose Valid Profile")
-            self._profile_filename = None
-            print("Bad Profile")
-        else:
-            self._current_profile.import_keypair(self._current_profile.keypair)
-            posts = self._current_profile.get_posts()
-            if posts != False:
-                self.body.set_posts(posts)
-            else:
-                tk.messagebox.showwarning(title="Error Loading DSU Posts.", message="Post Formatting Unsupported.")
-                self._profile_filename = None
-    
+        
     """
     Closes the program when the 'Close' menu item is clicked.
     """
     def close(self):
         self.root.destroy()
 
+
+    def refresh_ui(self):
+        #if self.body_user.chat_user != None:
+
+            #take elements of retrieve all/retrieve new and return DirectMessage objects with .name == chat_user
+            #order the list            
+
+        # use the list to create a string of  text (appropriately split by lines by message ordered by time)
+
+        # append entry to the text body
+        
+        self.body.set_text_entry("")
+
+
+    def add_user(self):
+        addeduser = tk.simpledialog.askstring("User entry:", "Recipient to chat with:") #change title to edit keys, prompt to include current keys as a lines
+        self.body.insert_user(addeduser)
+        self.refresh_ui()
+
+    
     """
     Saves the text currently in the entry_editor widget to the active DSU file.
     """
-    def save_profile(self):
-        # TODO: Write code to perform whatever operations are necessary to save a 
-        # post entry when the user clicks the save_button widget.
-        # HINT: You will probably need to do things like create a new Post object,
-        # fill it with text, add it to the active profile, save the profile, and
-        # clear the editor_entry UI for a new post.
-        # This might also be a good place to check if the user has selected the online
-        # checkbox and if so send the message to the server.
-        box_text = self.body.get_text_entry()
+    def send_message(self):
+        message_to_send = self.body.get_text_entry()
+        user_recipient = self.body.chat_user
 
-        if box_text == "":
-            tk.messagebox.showwarning(title="Post Box Empty", message="The post is empty!")
-        elif self._profile_filename == None:
-            tk.messagebox.showwarning(title="No DSU File Loaded", message="No Current DSU File Directory")
-        else:
-            USER_INP = simpledialog.askstring(title="Title", prompt="Title Of Post:")
-            post = Post(entry = self.body.get_text_entry(), title = USER_INP)
-            self.body.insert_post(post)
-            self._current_profile.add_post(post)
-            self._current_profile.save_profile(self._profile_filename)
-            self.body.set_text_entry("")
-            self.body.reset_ui()
-            posts = self._current_profile.get_posts()
-            if posts != False:
-                self.body.set_posts(posts)
-                if self._is_online is True:
-                    #call your server connect code.
-                    self.publish(post)
-            else:
-                tk.messagebox.showwarning(title="Error Loading DSU Posts", message="Post Type Unsupported.")
-                self._profile_filename = None
+        
 
+        
 
-    def publish(self, post:Post):
-        message = self._current_profile._decrypt_message(post.entry, self._current_profile.private_key, self._current_profile.public_key)
-        ds_client.send(self._current_profile.dsuserver, 2021, self._current_profile.username, self._current_profile.password, message, self._current_profile.keypair, self._current_profile.bio)
-
-
-    """
-    A callback function for responding to changes to the online chk_button.
-    """
-    def online_changed(self, value:bool):
-        # TODO: 
-        # 1. Remove the existing code. It has been left here to demonstrate
-        # how to change the text displayed in the footer_label widget and
-        # assist you with testing the callback functionality (if the footer_label
-        # text changes when you click the chk_button widget, your callback is working!).
-        # 2. Write code to support only sending posts to the DSU server when the online chk_button is checked.
-        if value == 1:
-            self.footer.set_status("Online")
-            self._is_online = True
-        else:
-            self.footer.set_status("Offline")
-            self._is_online = False
-        # self.body.set_text_entry("Hello World")
-    
-    def api_weather(self):
-        user_zip = simpledialog.askstring(title="zip", prompt="Enter Zip:")
-        user_country = simpledialog.askstring(title="country", prompt="Enter Country Code:")
-
-        open_weather = OpenWeather(str(user_zip), str(user_country), "3dbc2e95e625a20ea0fa40e84dbf61de")
-
-        if open_weather.error == False:
-            cursor = self.body.get_cursor_pos()
-            self.body.entry_editor.insert(cursor, open_weather.transclude("@weather"))
-        else:
-            tk.messagebox.showwarning(title="Error Handling API", message="Something went wrong with the Weather API, try inputting valid Zip and Country Codes.")
-
-    def api_fm(self):
-        last_fm = LastFM("34af4a7362d174fc5780583f343a1f65")
-        if last_fm.error == False:
-            cursor = self.body.get_cursor_pos()
-            self.body.entry_editor.insert(cursor, last_fm.transclude("@lastfm"))
-        else:
-            tk.messagebox.showwarning(title="Error Handling API", message="Something went wrong with the Last FM API, try again.")
-
-    def api_credit(self):
-        extra_credit = ExtraCredit()
-        if extra_credit.error == False:
-            cursor = self.body.get_cursor_pos()
-            self.body.entry_editor.insert(cursor, extra_credit.transclude("@extracredit"))
-        else:
-            tk.messagebox.showwarning(title="Error Handling API", message="Something went wrong with the Extra Credit API, try again.")
-
-    def ip_change(self):
-        if self._profile_filename == None:
-            tk.messagebox.showwarning(title="No DSU File Loaded", message="No Current DSU File Directory")
-        else:
-            
-            if self.ip_widget == False:
-                self.label = tk.Label(self.root, text='DSU Server: {}, username {}, password: {}'.format("168.235.86.101" ,self._current_profile.username, self._current_profile.password))
-                self.label.pack()
-                self.ip_widget = True
-            else:
-                self.label.destroy()
-                self.ip_widget = False
+        
+        # send message to recipient, catch errors
 
 
     """
@@ -372,36 +262,23 @@ class MainApp(tk.Frame):
         menu_bar = tk.Menu(self.root)
         self.root['menu'] = menu_bar
         menu_file = tk.Menu(menu_bar)
-        menu_bar.add_cascade(menu=menu_file, label='File')
-        menu_file.add_command(label='New', command=self.new_profile)
-        menu_file.add_command(label='Open...', command=self.open_profile)
-        menu_file.add_command(label='Close', command=self.close)
-
-        api_file = tk.Menu(menu_bar)
-        menu_bar.add_cascade(menu=api_file, label='APIs')
-        api_file.add_command(label='@weather', command=self.api_weather)
-        api_file.add_command(label='@lastfm', command=self.api_fm)
-        api_file.add_command(label='@extracredit', command=self.api_credit)
-
-        
-        # NOTE: Additional menu items can be added by following the conventions here.
-        # The only top level menu item is a 'cascading menu', that presents a small menu of
-        # command items when clicked. But there are others. A single button or checkbox, for example,
-        # could also be added to the menu bar. 
 
         # The Body and Footer classes must be initialized and packed into the root window.
-        self.body = Body(self.root, self._current_profile)
-        self.body.pack(fill=tk.BOTH, side=tk.TOP, expand=True)
-        
-        # TODO: Add a callback for detecting changes to the online checkbox widget in the Footer class. Follow
-        # the conventions established by the existing save_callback parameter.
-        # HINT: There may already be a class method that serves as a good callback function!
-        self.footer = Footer(self.root, save_callback=self.save_profile, online_callback=self.online_changed)
+        self.footer = Footer(self.root, save_callback=self.send_message, add_callback=self.add_user)
         self.footer.pack(fill=tk.BOTH, side=tk.BOTTOM)
+        
+        self.body = Body(self.root, self._current_profile)
+        self.body.pack(fill=tk.BOTH, side=tk.LEFT, expand=True)
 
-        ip_button = tk.Button(master=self.footer, text="Client Info", width=8)
-        ip_button.configure(command=self.ip_change)
-        ip_button.pack(fill=tk.BOTH, side=tk.LEFT, padx=5, pady=5)
+
+
+        # set initial conditions for testing:
+        testusers = ['mary', 'shelly', 'hegel']
+        for item in testusers:
+            self.body.insert_user(item)
+        usermessages = [{'name': 'mary', 'message': 'wow!!', 'timestamp':''}, {'name': 'shelly', 'message': 'wow1!!'}, {'name': 'shelly', 'message': 'wow2!!'}, {'name': 'mary', 'message': 'wow3!!'}]
+
+
 
 if __name__ == "__main__":
     # All Tkinter programs start with a root window. We will name ours 'main'.

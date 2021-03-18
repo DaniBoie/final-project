@@ -4,6 +4,10 @@ import ds_protocol
 import socket
 import time
 
+class CustomError(Exception):
+    pass
+
+
 
 class TCPClient():
 
@@ -104,11 +108,11 @@ class DirectMessenger:
 
     response = client.sendDataToDB(retrive_msg(self.token, "new"))
     server_data = client.readData(response)
+    # change to direct_message
 
     if type(server_data) == list:
       client.diconnectSocket()
       return server_data
-
     client.diconnectSocket()
 
 
@@ -123,9 +127,28 @@ class DirectMessenger:
     response = client.sendDataToDB(retrive_msg(self.token, "all"))
     server_data = client.readData(response)
 
-    if type(server_data) == list:
-      client.diconnectSocket()
-      return server_data
+    print('DEBUG', server_data)
+    expected_ = ['message','from','timestamp']
+    direct_message_list = []
+
+    # check if server_data exists before creating direct messages
+    if server_data != None:
+        for dict_ in server_data:
+            if list(dict_.keys()) == expected_:
+                message_creator = DirectMessage()
+                message_creator.recipient = dict_['from']
+                message_creator.message = dict_['message']
+                message_creator.timestamp = dict_['timestamp']
+
+                direct_message_list.append(message_creator)
+            else:
+                pass
+                # maybe exception? idk if its possible to get wrong key values from server
+        print('DEBUG', direct_message_list.__str__)
+    
+        if type(direct_message_list) == list:
+          client.diconnectSocket()
+          return direct_message_list
   
     client.diconnectSocket()
   
@@ -151,16 +174,26 @@ def retrive_msg(user_token: str, pull_type: str) -> str:
 
 if __name__ == "__main__":
 
-  messenger = DirectMessenger(dsuserver=None, username="Marco55", password="1234")
+  messenger = DirectMessenger(dsuserver=None, username="hegel", password="xxx@")
+  messenger1 = DirectMessenger(dsuserver=None, username="hegelhater", password="xxxB")
 
-  print(messenger.send("You are siccx", "Mango15"), "<--- Send function")
+  print(messenger.send("no ur not", "unique username"), "<--- Send function @ self 1")
+  print(messenger.retrieve_new(), "<---- Retrievecould New Function mango")
 
-  print(messenger.retrieve_new(), "<---- Retrieve New Function")
+  print(messenger1.send("whats konpeko | hegels my bitch u cant have him", "Team No Name"), "<--- Send function @ Team No Name 2")
+  print(messenger1.send("shut ur encrypted ass up", "Rosie"), "<--- Send function @ Rosie 3")
+  
+  print(messenger.send("name2r", "thisismyusername25"), "<--- Send function @ thisismyusername25 1")
+  print(messenger.send("u are <but a position vector>", "thisismyusername25"), "<--- Send function @ thisismyusername25 2")
 
+  print(messenger.retrieve_new(), "<---- Retrievecould New Function mango")
   print(messenger.retrieve_all(), "<---- Retrieve All Function")
+
+  print(messenger1.retrieve_new(), "<---- Retrievecould New Function grog")
+  print(messenger1.retrieve_all(), "<---- Retrieve All Function")
+
 
   # try:
   #   data = client.readData(response)
   # except CustomError:
   #   do something in GUI
-

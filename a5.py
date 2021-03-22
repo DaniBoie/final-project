@@ -287,10 +287,6 @@ def run():
         except TypeError:
           pass
         else:
-          # post_entry = user_profile.encrypt_entry(client_message, user_profile.public_key)
-          # post_entry = post_entry.decode(encoding='UTF-8')
-          # print(post_entry, "<--- CLient encryption")
-          # print(user_post.entry, "<--- Server encryption")
           new_post = Post(client_message, user_post.timestamp)
           user_profile.add_post(new_post)
           user_profile.save_profile(p)

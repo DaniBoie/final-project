@@ -49,9 +49,8 @@ class Body(tk.Frame):
     """
     def node_select(self, event):
         index = int(self.users_tree.selection()[0])-1 #selections are not 0-based, so subtract one.
-        print(index)
-        print(self._users)
         self.chat_user = self._users[index]
+        #print(self.chat_user)
 
         if self._new_text_callback != None:
             self._new_text_callback()
@@ -95,6 +94,7 @@ class Body(tk.Frame):
         self.users_tree = ttk.Treeview(users_frame)
         self.users_tree.bind("<<TreeviewSelect>>", self.node_select)
         self.users_tree.pack(fill=tk.BOTH, side=tk.TOP, expand=True, padx=5, pady=5)
+        
 
         receipt_frame = tk.Frame(master=self)
         receipt_frame.pack(fill=tk.BOTH, side=tk.LEFT, expand=True, padx=5, pady=[0,5])
@@ -124,7 +124,7 @@ class Body(tk.Frame):
 
         self.body_label = tk.Label(master=frame_within_above, text="wowww\n\n\n", relief='groove')
         self.body_label.pack(fill=tk.BOTH, side=tk.LEFT, expand=True)
-##
+
 ##        scroll_frame_display = tk.Frame(master=frame_within_above, bg="blue")
 ##        scroll_frame_display.pack(fill=tk.BOTH, side=tk.LEFT, expand=False)
 ##
@@ -208,6 +208,12 @@ class MainApp(tk.Frame):
         self._profile_filename = _profile_filename
         # Initialize a new NaClProfile and assign it to a class attribute.
         self._current_profile = NaClProfile()
+        self._current_profile.username = 'shelley'
+        print(hasattr(self._current_profile, 'username'))
+        self._Direct_Messenger = ds_messenger.DirectMessenger(None, self._current_profile.username, self._current_profile.password)
+        print(self._current_profile.username, self._current_profile.password)
+        print(self._current_profile.__dict__, self._Direct_Messenger.retrieve_all())
+        
 
         # After all initialization is complete, call the _draw method to pack the widgets
         # into the root frame
@@ -220,37 +226,109 @@ class MainApp(tk.Frame):
         self.root.destroy()
 
 
-    def refresh_ui(self):
-        #if self.body_user.chat_user != None:
-
-            #take elements of retrieve all/retrieve new and return DirectMessage objects with .name == chat_user
-            #order the list            
-
-        # use the list to create a string of  text (appropriately split by lines by message ordered by time)
-
-        # append entry to the text body
-        
-        self.body.set_text_entry("")
-
 
     def add_user(self):
         addeduser = tk.simpledialog.askstring("User entry:", "Recipient to chat with:") #change title to edit keys, prompt to include current keys as a lines
         self.body.insert_user(addeduser)
-        self.refresh_ui()
+        self.load_user_chat()
 
     
     """
     Saves the text currently in the entry_editor widget to the active DSU file.
     """
+
+    def sort_messages(self, direct_msg_list:[ds_messenger.DirectMessage]) -> list:
+        sortedmsg = []
+        print(direct_msg_list)
+        for i in range(len(direct_msg_list)):
+            print(direct_msg_list[i])
+            if i == 0:
+                sortedmsg.append(direct_msg_list[i])
+            elif i > 0:
+                while not direct_msg_list[i].timestamp > sortedmsg[-1].timestamp:
+                    for j in range(1, len(sortedmsg)):
+                        if not j == len(sortedmsg):
+                            if (direct_msg_list.timestamp > sortedmsg[-1-j].timestamp):
+                                sortedmsg.insert((-1-j), direct_msg_list[i])
+                                break
+                            else:
+                                pass
+                        else:
+                            sortedmsg.insert(0, direct_msg_list[i])
+                            break
+                sortedmsg.append(direct_msg_list[i])
+        return sortedmsg    
+
+
+    def load_user_chat(self):
+        print('DEBUG', self.body.chat_user)
+        if self.body.chat_user != None:
+            total_list = []
+            
+            # retrieve received messages, as well as sent messages
+            
+            raw_list = self._Direct_Messenger.retrieve_all()
+            
+            recipient_receipt = ds_messenger.DirectMessenger(None, self.body.chat_user).retrieve_all()
+
+            #debug
+            if (raw_list != None):
+                print([ele.message for ele in raw_list], self.body.chat_user)
+                if (recipient_receipt != None):
+                    raw_list += recipient_receipt
+
+            # create a list 
+
+            for directmessage in raw_list:
+                if (directmessage.recipient == self.body.chat_user) or (directmessage.recipient == self._current_profile.username):
+                    total_list.append(directmessage)
+            sort_msg = self.sort_messages(total_list)
+            print(sort_msg)
+            
+
+            
+
+            # set the current label equal 
+
+            #self.body.body_label.configure(sort_msg)
+        
+
+    
+        # use the list to create a string of  text (appropriately split by lines by message ordered by time)
+
+        # append entry to the text body
+        
+        #self.body.set_text_entry("")
+
+
+    def add_user(self):
+        addeduser = tk.simpledialog.askstring("User entry:", "Recipient to chat with:") #change title to edit keys, prompt to include current keys as a lines
+        # add to treeview 
+        self.body.insert_user(addeduser)
+        # load chat of current user
+        self.load_user_chat()
+
+    
+    """
+    Saves the text currently in the entry_editor widget to the current selected user on the node tree
+    """
     def send_message(self):
-        message_to_send = self.body.get_text_entry()
-        user_recipient = self.body.chat_user
-
-        
-
-        
-
-        
+        print(self.body.chat_user)
+        if self.body.chat_user != None:
+            message_to_send = self.body.get_text_entry()
+            user_recipient = self.body.chat_user
+            
+            sent = self._Direct_Messenger.send(message_to_send, user_recipient)
+            
+            if sent == True:
+                self.body.set_text_entry("")
+            else:
+                tk.messagebox.showerror(title='Error', message='Message not sent')
+                
+            # send message to recipient, catch errors
+        pass
+    
+            
         # send message to recipient, catch errors
 
 
@@ -267,16 +345,29 @@ class MainApp(tk.Frame):
         self.footer = Footer(self.root, save_callback=self.send_message, add_callback=self.add_user)
         self.footer.pack(fill=tk.BOTH, side=tk.BOTTOM)
         
-        self.body = Body(self.root, self._current_profile)
+        self.body = Body(self.root, self._current_profile, self.load_user_chat)
         self.body.pack(fill=tk.BOTH, side=tk.LEFT, expand=True)
+
+        #check for initial connected chatters:
+        all_received  = self._Direct_Messenger.retrieve_all()
+        if all_received != None:
+            userlist = []
+            for entry in all_received:
+                if entry.recipient not in userlist:
+                    userlist.append(entry.recipient)
+        for item in userlist:
+            self.body.insert_user(item)
+    
+        
+
 
 
 
         # set initial conditions for testing:
-        testusers = ['mary', 'shelly', 'hegel']
-        for item in testusers:
-            self.body.insert_user(item)
-        usermessages = [{'name': 'mary', 'message': 'wow!!', 'timestamp':''}, {'name': 'shelly', 'message': 'wow1!!'}, {'name': 'shelly', 'message': 'wow2!!'}, {'name': 'mary', 'message': 'wow3!!'}]
+####        testusers = ['mary', 'shelly', 'hegel']
+####        for item in testusers:
+####            self.body.insert_user(item)
+####        usermessages = [{'name': 'mary', 'message': 'wow!!', 'timestamp':''}, {'name': 'shelly', 'message': 'wow1!!'}, {'name': 'shelly', 'message': 'wow2!!'}, {'name': 'mary', 'message': 'wow3!!'}]
 
 
 
